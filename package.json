@@ -7,6 +7,19 @@
     "cors": "^2.8.5",
     "dotenv": "^16.0.1",
     "express": "^4.18.1",
-    "stripe": "^9.11.0"
-  }
+    "ngrok": "^5.0.0-beta.2",
+    "nodemailer": "^6.9.14",
+    "nodemon": "^3.1.4",
+    "pg": "^8.12.0",
+    "sequelize": "^6.37.3",
+    "sequelize-cli": "^6.6.2",
+    "sinatra": "^0.0.5",
+    "stripe": "^9.16.0",
+    "stripe-cli": "^0.1.0"
+  },
+  "scripts": {
+    "start": "nodemon app.js"
+  },
+  "author": "",
+  "description": ""
 }
