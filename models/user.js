@@ -11,6 +11,10 @@ module.exports = (sequelize, DataTypes) => {
       ticket: {
         type: DataTypes.INTEGER,
         allowNull: false
+      },
+      quantity: {
+        type: DataTypes.INTEGER,
+        allowNull: false
       }
     });
   

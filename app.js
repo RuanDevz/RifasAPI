@@ -5,12 +5,15 @@ const cors = require("cors");
 const bodyParser = require("body-parser");
 const db = require("./models");
 
-const app = express();
+const sendemailrouter = require('./routes/sendemail');
 
+const app = express();
 
 app.use(cors());
 app.use(express.json());
 app.use(bodyParser.raw({ type: "application/json" }));
+
+app.use('/send-confirmation-email', sendemailrouter);
 
 let ticketsDisponiveis = 100;
 
@@ -21,8 +24,10 @@ app.get("/tickets-restantes", (req, res) => {
 app.post("/create-checkout", async (req, res) => {
   console.log(req.body);
 
-  if (ticketsDisponiveis <= 0) {
-    return res.status(400).json({ error: "Não há tickets disponíveis." });
+  const totalQuantity = req.body.products.reduce((acc, product) => acc + product.quantity, 0);
+
+  if (totalQuantity > ticketsDisponiveis) {
+    return res.status(400).json({ error: "Não há tickets suficientes disponíveis." });
   }
 
   const items = req.body.products.map((product) => ({
@@ -47,19 +52,21 @@ app.post("/create-checkout", async (req, res) => {
 });
 
 app.post("/reduce-ticket", (req, res) => {
-  if (ticketsDisponiveis > 0) {
-    ticketsDisponiveis--;
-    res.json({ message: "Ticket reduzido com sucesso", ticketsDisponiveis });
+  const { quantity } = req.body;
+
+  if (ticketsDisponiveis >= quantity) {
+    ticketsDisponiveis -= quantity;
+    res.json({ message: "Ticket(s) reduzido(s) com sucesso", ticketsDisponiveis });
   } else {
-    res.status(400).json({ error: "Não há tickets disponíveis." });
+    res.status(400).json({ error: "Não há tickets suficientes disponíveis." });
   }
 });
 
 app.post("/generate-ticket", async (req, res) => {
-  const { name, email } = req.body;
+  const { name, email, quantity } = req.body;
 
-  if (!name || !email) {
-    return res.status(400).json({ error: "Nome e email são obrigatórios" });
+  if (!name || !email || !quantity) {
+    return res.status(400).json({ error: "Nome, email e quantidade são obrigatórios" });
   }
 
   try {
@@ -80,6 +87,7 @@ app.post("/generate-ticket", async (req, res) => {
       name,
       email,
       ticket: ticketNumber,
+      quantity
     });
 
     res.json({
@@ -89,6 +97,30 @@ app.post("/generate-ticket", async (req, res) => {
   } catch (error) {
     console.error("Error generating ticket:", error);
     res.status(500).json({ error: "Erro ao gerar ticket" });
+  }
+});
+
+app.get("/ticket-info/:ticketNumber", async (req, res) => {
+  const { ticketNumber } = req.params;
+
+  try {
+    const ticket = await db.Ticket.findOne({
+      where: { ticket: ticketNumber }
+    });
+
+    if (!ticket) {
+      return res.status(404).json({ error: "Ticket não encontrado." });
+    }
+
+    res.json({
+      name: ticket.name,
+      email: ticket.email,
+      ticket: ticket.ticket,
+      quantity: ticket.quantity
+    });
+  } catch (error) {
+    console.error("Error fetching ticket info:", error);
+    res.status(500).json({ error: "Erro ao buscar informações do ticket" });
   }
 });
 
