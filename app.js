@@ -4,8 +4,7 @@ const express = require("express");
 const cors = require("cors");
 const bodyParser = require("body-parser");
 const db = require("./models");
-
-const sendemailrouter = require('./routes/sendemail');
+const sendConfirmationEmail = require('./services/EmailSend'); // Importa o serviço de e-mail
 
 const app = express();
 
@@ -13,17 +12,13 @@ app.use(cors());
 app.use(express.json());
 app.use(bodyParser.raw({ type: "application/json" }));
 
-app.use('/send-confirmation-email', sendemailrouter);
-
-let ticketsDisponiveis = 100;
+let ticketsDisponiveis = 20000;
 
 app.get("/tickets-restantes", (req, res) => {
   res.json({ ticketsDisponiveis });
 });
 
 app.post("/create-checkout", async (req, res) => {
-  console.log(req.body);
-
   const totalQuantity = req.body.products.reduce((acc, product) => acc + product.quantity, 0);
 
   if (totalQuantity > ticketsDisponiveis) {
@@ -89,6 +84,9 @@ app.post("/generate-ticket", async (req, res) => {
       ticket: ticketNumber,
       quantity
     });
+
+    // Envia e-mail de confirmação
+    await sendConfirmationEmail(email, newTicket);
 
     res.json({
       message: "Ticket gerado com sucesso",
