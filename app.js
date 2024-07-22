@@ -4,7 +4,7 @@ const express = require("express");
 const cors = require("cors");
 const bodyParser = require("body-parser");
 const db = require("./models");
-const sendConfirmationEmail = require('./services/EmailSend'); // Importa o serviço de e-mail
+const sendConfirmationEmail = require('./services/EmailSend');
 
 const app = express();
 
@@ -57,44 +57,56 @@ app.post("/reduce-ticket", (req, res) => {
   }
 });
 
-app.post("/generate-ticket", async (req, res) => {
+app.post("/generate-tickets", async (req, res) => {
   const { name, email, quantity } = req.body;
 
-  if (!name || !email || !quantity) {
-    return res.status(400).json({ error: "Nome, email e quantidade são obrigatórios" });
+  if (!name || !email || !quantity || quantity <= 0) {
+    return res.status(400).json({ error: "Nome, email e quantidade são obrigatórios e a quantidade deve ser maior que zero" });
+  }
+
+  if (quantity > ticketsDisponiveis) {
+    return res.status(400).json({ error: "Não há tickets suficientes disponíveis." });
   }
 
   try {
-    let ticketNumber;
-    let ticketExists = true;
+    const tickets = [];
 
-    while (ticketExists) {
-      ticketNumber = Math.floor(Math.random() * 1000000) + 1;
-      const existingTicket = await db.Ticket.findOne({
-        where: { ticket: ticketNumber },
-      });
-      if (!existingTicket) {
-        ticketExists = false;
+    for (let i = 0; i < quantity; i++) {
+      let ticketNumber;
+      let ticketExists = true;
+
+      while (ticketExists) {
+        ticketNumber = Math.floor(Math.random() * 1000000) + 1;
+        const existingTicket = await db.Ticket.findOne({
+          where: { ticket: ticketNumber },
+        });
+        if (!existingTicket) {
+          ticketExists = false;
+        }
       }
+
+      const newTicket = await db.Ticket.create({
+        name,
+        email,
+        ticket: ticketNumber,
+        quantity: 1,
+      });
+
+      tickets.push(newTicket);
     }
 
-    const newTicket = await db.Ticket.create({
-      name,
-      email,
-      ticket: ticketNumber,
-      quantity
-    });
+    ticketsDisponiveis -= quantity;
 
-    // Envia e-mail de confirmação
-    await sendConfirmationEmail(email, newTicket);
+
+    await sendConfirmationEmail(email, name, tickets);
 
     res.json({
-      message: "Ticket gerado com sucesso",
-      ticket: newTicket,
+      message: "Tickets gerados com sucesso",
+      tickets,
     });
   } catch (error) {
-    console.error("Error generating ticket:", error);
-    res.status(500).json({ error: "Erro ao gerar ticket" });
+    console.error("Error generating tickets:", error);
+    res.status(500).json({ error: "Erro ao gerar tickets" });
   }
 });
 
@@ -114,11 +126,38 @@ app.get("/ticket-info/:ticketNumber", async (req, res) => {
       name: ticket.name,
       email: ticket.email,
       ticket: ticket.ticket,
-      quantity: ticket.quantity
     });
   } catch (error) {
     console.error("Error fetching ticket info:", error);
     res.status(500).json({ error: "Erro ao buscar informações do ticket" });
+  }
+});
+
+
+app.get("/tickets-by-email/:email", async (req, res) => {
+  const { email } = req.params;
+
+  try {
+    const tickets = await db.Ticket.findAll({
+      where: { email }
+    });
+
+    if (tickets.length === 0) {
+      return res.status(404).json({ error: "Nenhum ticket encontrado para este email." });
+    }
+
+    // Formata a resposta para retornar apenas os tickets e suas quantidades
+    const formattedTickets = tickets.map(ticket => ({
+      ticket: ticket.ticket,
+      quantity: ticket.quantity
+    }));
+
+    res.json({
+      tickets: formattedTickets
+    });
+  } catch (error) {
+    console.error("Error fetching tickets by email:", error);
+    res.status(500).json({ error: "Erro ao buscar tickets pelo email" });
   }
 });
 

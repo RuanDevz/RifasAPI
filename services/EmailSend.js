@@ -1,4 +1,3 @@
-// emailService.js
 const nodemailer = require('nodemailer');
 
 // Configure o transporte de e-mail
@@ -10,19 +9,19 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-const sendConfirmationEmail = (to, ticket) => {
+const sendConfirmationEmail = (to, name, tickets) => {
+  const ticketList = tickets.map(ticket => `Ticket Número: #${ticket.ticket}`).join('\n');
+
   const mailOptions = {
     from: process.env.EMAIL_USER,
     to,
-    subject: 'Confirmação de Compra de Ticket',
+    subject: 'Confirmação de Compra de Tickets',
     text: `
-      Olá,
+      Olá ${name},
 
-      Seu ticket foi comprado com sucesso!
+      Seus tickets foram comprados com sucesso!
 
-      Número do Ticket: #${ticket.ticket}
-      Nome: ${ticket.name}
-      Quantidade: ${ticket.quantity}
+      ${ticketList}
 
       Obrigado por usar nosso serviço!
 
