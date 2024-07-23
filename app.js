@@ -24,7 +24,7 @@ app.post("/create-checkout", async (req, res) => {
   if (totalQuantity > ticketsDisponiveis) {
     return res.status(400).json({ error: "Não há tickets suficientes disponíveis." });
   }
-
+// deopki
   const items = req.body.products.map((product) => ({
     price_data: {
       currency: "usd",
