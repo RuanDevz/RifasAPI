@@ -16,7 +16,7 @@
   "production": {
     "username": "neondb_owner",
     "password": "I2axNyRlWA4C",
-    "database": "ep-old-king-a5tz6rr9.us-east-2.aws.neon.tech",
+    "database": "neondb",
     "host": "ep-old-king-a5tz6rr9.us-east-2.aws.neon.tech",
     "dialect": "postgres"
   }
