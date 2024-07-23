@@ -5,6 +5,9 @@ const cors = require("cors");
 const bodyParser = require("body-parser");
 const db = require("./models");
 const sendConfirmationEmail = require('./services/EmailSend');
+const pg = require('pg');
+
+const { Pool } = pg;
 
 const app = express();
 
@@ -24,7 +27,7 @@ app.post("/create-checkout", async (req, res) => {
   if (totalQuantity > ticketsDisponiveis) {
     return res.status(400).json({ error: "Não há tickets suficientes disponíveis." });
   }
-// deopki
+
   const items = req.body.products.map((product) => ({
     price_data: {
       currency: "usd",
@@ -68,7 +71,14 @@ app.post("/generate-tickets", async (req, res) => {
     return res.status(400).json({ error: "Não há tickets suficientes disponíveis." });
   }
 
+  const pool = new Pool({
+    connectionString: process.env.POSTGRES_URL,
+  });
+
   try {
+    const client = await pool.connect();
+    await client.query('BEGIN');
+
     const tickets = [];
 
     for (let i = 0; i < quantity; i++) {
@@ -97,8 +107,10 @@ app.post("/generate-tickets", async (req, res) => {
 
     ticketsDisponiveis -= quantity;
 
-
     await sendConfirmationEmail(email, name, tickets);
+
+    await client.query('COMMIT');
+    client.release();
 
     res.json({
       message: "Tickets gerados com sucesso",
@@ -107,6 +119,8 @@ app.post("/generate-tickets", async (req, res) => {
   } catch (error) {
     console.error("Error generating tickets:", error);
     res.status(500).json({ error: "Erro ao gerar tickets" });
+  } finally {
+    pool.end();
   }
 });
 
@@ -157,6 +171,19 @@ app.get("/tickets-by-email/:email", async (req, res) => {
     console.error("Error fetching tickets by email:", error);
     res.status(500).json({ error: "Erro ao buscar tickets pelo email" });
   }
+});
+
+const pool = new Pool({
+  connectionString: process.env.POSTGRES_URL,
+});
+
+pool.connect((err, client, done) => {
+  if (err) {
+    console.error('Erro ao conectar ao banco de dados:', err);
+    return;
+  }
+  console.log('Conexão bem-sucedida ao banco de dados');
+  client.release();
 });
 
 const PORT = process.env.PORT || 5000;
