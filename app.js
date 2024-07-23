@@ -146,7 +146,7 @@ app.get("/ticket-info/:ticketNumber", async (req, res) => {
     res.status(500).json({ error: "Erro ao buscar informações do ticket" });
   }
 });
-
+ //depl
 
 app.get("/tickets-by-email/:email", async (req, res) => {
   const { email } = req.params;
