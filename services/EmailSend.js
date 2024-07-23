@@ -1,8 +1,7 @@
 const nodemailer = require('nodemailer');
 
-// Configure o transporte de e-mail
 const transporter = nodemailer.createTransport({
-  service: 'gmail', // ou outro serviço de e-mail
+  service: 'gmail', 
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS,
@@ -10,31 +9,31 @@ const transporter = nodemailer.createTransport({
 });
 
 const sendConfirmationEmail = (to, name, tickets) => {
-  const ticketList = tickets.map(ticket => `Ticket Número: #${ticket.ticket}`).join('\n');
+  const ticketList = tickets.map(ticket => `Ticket Number: #${ticket.ticket}`).join('\n');
 
   const mailOptions = {
     from: process.env.EMAIL_USER,
     to,
-    subject: 'Confirmação de Compra de Tickets',
+    subject: 'Ticket Purchase Confirmation',
     text: `
-      Olá ${name},
+      Hello ${name},
 
-      Seus tickets foram comprados com sucesso!
+      Your tickets have been successfully purchased!
 
       ${ticketList}
 
-      Obrigado por usar nosso serviço!
+      Thank you for using our service!
 
-      Atenciosamente,
-      Equipe de Suporte
+      Best regards,
+      Support Team
     `,
   };
 
   transporter.sendMail(mailOptions, (error, info) => {
     if (error) {
-      console.error('Erro ao enviar e-mail:', error);
+      console.error('Error sending email:', error);
     } else {
-      console.log('E-mail enviado:', info.response);
+      console.log('Email sent:', info.response);
     }
   });
 

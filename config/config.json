@@ -14,10 +14,10 @@
     "dialect": "mysql"
   },
   "production": {
-    "username": "root",
-    "password": null,
-    "database": "database_production",
-    "host": "127.0.0.1",
-    "dialect": "mysql"
+    "username": "neondb_owner",
+    "password": "I2axNyRlWA4C",
+    "database": "ep-old-king-a5tz6rr9.us-east-2.aws.neon.tech",
+    "host": "ep-old-king-a5tz6rr9.us-east-2.aws.neon.tech",
+    "dialect": "postgres"
   }
 }

@@ -27,7 +27,7 @@ app.post("/create-checkout", async (req, res) => {
 
   const items = req.body.products.map((product) => ({
     price_data: {
-      currency: "brl",
+      currency: "usd",
       product_data: {
         name: product.name,
       },
@@ -146,10 +146,8 @@ app.get("/tickets-by-email/:email", async (req, res) => {
       return res.status(404).json({ error: "Nenhum ticket encontrado para este email." });
     }
 
-    // Formata a resposta para retornar apenas os tickets e suas quantidades
     const formattedTickets = tickets.map(ticket => ({
       ticket: ticket.ticket,
-      quantity: ticket.quantity
     }));
 
     res.json({
