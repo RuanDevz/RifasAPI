@@ -175,6 +175,9 @@ app.get("/tickets-by-email/:email", async (req, res) => {
 
 const pool = new Pool({
   connectionString: process.env.POSTGRES_URL,
+  ssl: {
+    rejectUnauthorized: false
+  }
 });
 
 pool.connect((err, client, done) => {
