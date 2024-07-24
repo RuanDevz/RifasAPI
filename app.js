@@ -5,9 +5,6 @@ const cors = require("cors");
 const bodyParser = require("body-parser");
 const db = require("./models");
 const sendConfirmationEmail = require('./services/EmailSend');
-const pg = require('pg');
-
-const { Pool } = pg;
 
 const app = express();
 
@@ -71,13 +68,7 @@ app.post("/generate-tickets", async (req, res) => {
     return res.status(400).json({ error: "Não há tickets suficientes disponíveis." });
   }
 
-  const pool = new Pool({
-    connectionString: process.env.POSTGRES_URL,
-  });
-
   try {
-    const client = await pool.connect();
-    await client.query('BEGIN');
 
     const tickets = [];
 
@@ -109,9 +100,6 @@ app.post("/generate-tickets", async (req, res) => {
 
     await sendConfirmationEmail(email, name, tickets);
 
-    await client.query('COMMIT');
-    client.release();
-
     res.json({
       message: "Tickets gerados com sucesso",
       tickets,
@@ -119,8 +107,6 @@ app.post("/generate-tickets", async (req, res) => {
   } catch (error) {
     console.error("Error generating tickets:", error);
     res.status(500).json({ error: "Erro ao gerar tickets" });
-  } finally {
-    pool.end();
   }
 });
 
@@ -170,13 +156,6 @@ app.get("/tickets-by-email/:email", async (req, res) => {
   } catch (error) {
     console.error("Error fetching tickets by email:", error);
     res.status(500).json({ error: "Erro ao buscar tickets pelo email" });
-  }
-});
-
-const pool = new Pool({
-  connectionString: process.env.POSTGRES_URL,
-  ssl: {
-    rejectUnauthorized: false
   }
 });
 
