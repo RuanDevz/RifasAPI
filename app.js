@@ -5,6 +5,7 @@ const cors = require("cors");
 const bodyParser = require("body-parser");
 const db = require("./models");
 const sendConfirmationEmail = require('./services/EmailSend');
+const pg = require('pg')
 
 const app = express();
 
@@ -159,17 +160,25 @@ app.get("/tickets-by-email/:email", async (req, res) => {
   }
 });
 
-db.sequelize.authenticate()
-  .then(() => {
-    console.log('Conexão com o banco de dados estabelecida com sucesso.');
-    return db.sequelize.sync();
-  })
-  .then(() => {
-    const PORT = process.env.PORT || 5000;
-    app.listen(PORT, () => {
-      console.log(`Servidor rodando na porta ${PORT}...`);
-    });
-  })
-  .catch(err => {
+const { Pool } = pg;
+
+const pool = new Pool({
+  connectionString: process.env.POSTGRES_URL,
+});
+
+pool.connect((err, client, done) => {
+  if (err) {
     console.error('Erro ao conectar ao banco de dados:', err);
+    return;
+  }
+  console.log('Conexão bem-sucedida ao banco de dados');
+  client.release();
+});
+
+const PORT = process.env.PORT || 5000;
+
+db.sequelize.sync().then(() => {
+  app.listen(PORT, () => {
+    console.log(`Servidor rodando na porta ${PORT}`);
   });
+});
