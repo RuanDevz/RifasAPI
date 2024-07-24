@@ -180,18 +180,17 @@ const pool = new Pool({
   }
 });
 
-pool.connect((err, client, done) => {
-  if (err) {
+db.sequelize.authenticate()
+  .then(() => {
+    console.log('Conexão com o banco de dados estabelecida com sucesso.');
+    return db.sequelize.sync();
+  })
+  .then(() => {
+    const PORT = process.env.PORT || 5000;
+    app.listen(PORT, () => {
+      console.log(`Servidor rodando na porta ${PORT}...`);
+    });
+  })
+  .catch(err => {
     console.error('Erro ao conectar ao banco de dados:', err);
-    return;
-  }
-  console.log('Conexão bem-sucedida ao banco de dados');
-  client.release();
-});
-
-const PORT = process.env.PORT || 5000;
-db.sequelize.sync().then(() => {
-  app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
   });
-});

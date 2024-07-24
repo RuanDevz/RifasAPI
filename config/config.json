@@ -14,10 +14,11 @@
     "dialect": "mysql"
   },
   "production": {
-    "username": "neondb_owner",
-    "password": "I2axNyRlWA4C",
-    "database": "neondb",
-    "host": "ep-old-king-a5tz6rr9.us-east-2.aws.neon.tech",
+    "username": "postgres.nfuekapuibyfwsjbapdj",
+    "password": "Ruan1120#@#@",
+    "database": "postgres",
+    "host": "aws-0-sa-east-1.pooler.supabase.com",
+    "port": 6543,
     "dialect": "postgres"
   }
 }
