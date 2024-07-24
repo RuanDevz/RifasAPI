@@ -18,7 +18,6 @@
     "password": "Ruan1120#@#@",
     "database": "postgres",
     "host": "aws-0-sa-east-1.pooler.supabase.com",
-    "port": 6543,
     "dialect": "postgres"
   }
 }
