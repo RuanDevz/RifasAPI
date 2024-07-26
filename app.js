@@ -47,32 +47,18 @@ app.post("/create-checkout", async (req, res) => {
   res.send({ url: session.url });
 });
 
-app.post("/reduce-ticket", (req, res) => {
-  const { quantity } = req.body;
+app.post("/reduce-ticket", async (req, res) => {
+  const { quantity, email, name } = req.body;
+
+  if (!email || !name) {
+    return res.status(400).json({ error: "Email e nome são obrigatórios." });
+  }
 
   if (ticketsDisponiveis >= quantity) {
     ticketsDisponiveis -= quantity;
-    res.json({ message: "Ticket(s) reduzido(s) com sucesso", ticketsDisponiveis });
-  } else {
-    res.status(400).json({ error: "Não há tickets suficientes disponíveis." });
-  }
-});
 
-app.post("/generate-tickets", async (req, res) => {
-  const { name, email, quantity } = req.body;
-
-  if (!name || !email || !quantity || quantity <= 0) {
-    return res.status(400).json({ error: "Nome, email e quantidade são obrigatórios e a quantidade deve ser maior que zero" });
-  }
-
-  if (quantity > ticketsDisponiveis) {
-    return res.status(400).json({ error: "Não há tickets suficientes disponíveis." });
-  }
-
-  try {
-
+    // Geração dos tickets
     const tickets = [];
-
     for (let i = 0; i < quantity; i++) {
       let ticketNumber;
       let ticketExists = true;
@@ -97,18 +83,33 @@ app.post("/generate-tickets", async (req, res) => {
       tickets.push(newTicket);
     }
 
-    ticketsDisponiveis -= quantity;
+    res.json({ message: "Ticket(s) reduzido(s) com sucesso", ticketsDisponiveis, tickets });
 
-    await sendConfirmationEmail(email, name, tickets);
-
-    res.json({
-      message: "Tickets gerados com sucesso",
-      tickets,
-    });
-  } catch (error) {
-    console.error("Error generating tickets:", error);
-    res.status(500).json({ error: "Erro ao gerar tickets" });
+    try {
+      await sendConfirmationEmail(email, name, tickets);
+    } catch (error) {
+      console.error("Error sending confirmation email:", error);
+      res.status(500).json({ error: "Erro ao enviar email de confirmação." });
+    }
+  } else {
+    res.status(400).json({ error: "Não há tickets suficientes disponíveis." });
   }
+});
+
+app.post("/generate-tickets", async (req, res) => {
+  const { name, email, quantity } = req.body;
+
+  if (!name || !email || !quantity || quantity <= 0) {
+    return res.status(400).json({ error: "Nome, email e quantidade são obrigatórios e a quantidade deve ser maior que zero" });
+  }
+
+  if (quantity > ticketsDisponiveis) {
+    return res.status(400).json({ error: "Não há tickets suficientes disponíveis." });
+  }
+
+  res.json({
+    message: "Pedido para gerar tickets recebido com sucesso. A geração de tickets será feita no momento da redução de tickets.",
+  });
 });
 
 app.get("/ticket-info/:ticketNumber", async (req, res) => {
@@ -133,7 +134,6 @@ app.get("/ticket-info/:ticketNumber", async (req, res) => {
     res.status(500).json({ error: "Erro ao buscar informações do ticket" });
   }
 });
- //depl
 
 app.get("/tickets-by-email/:email", async (req, res) => {
   const { email } = req.params;
@@ -166,14 +166,14 @@ const pool = new Pool({
   connectionString: process.env.POSTGRES_URL,
 });
 
-pool.connect((err, client, done) => {
-  if (err) {
-    console.error('Erro ao conectar ao banco de dados:', err);
-    return;
-  }
-  console.log('Conexão bem-sucedida ao banco de dados');
-  client.release();
-});
+// pool.connect((err, client, done) => {
+//   if (err) {
+//     console.error('Erro ao conectar ao banco de dados:', err);
+//     return;
+//   }
+//   console.log('Conexão bem-sucedida ao banco de dados');
+//   client.release();
+// });
 
 const PORT = process.env.PORT || 5000;
 

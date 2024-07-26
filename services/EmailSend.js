@@ -1,43 +1,38 @@
 const nodemailer = require('nodemailer');
 
-const transporter = nodemailer.createTransport({
-  service: 'gmail', 
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-});
+const sendConfirmationEmail = async (email, name, tickets) => {
+  if (!email || !tickets || tickets.length === 0) {
+    throw new Error('Invalid email or tickets');
+  }
 
-const sendConfirmationEmail = (to, name, tickets) => {
-  const ticketList = tickets.map(ticket => `Ticket Number: #${ticket.ticket}`).join('\n');
+  const transporter = nodemailer.createTransport({
+    service: 'Gmail',
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS,
+    },
+  });
+
+  const ticketList = tickets.map(ticket => ticket.ticket).join(', ');
 
   const mailOptions = {
     from: process.env.EMAIL_USER,
-    to,
-    subject: 'Ticket Purchase Confirmation',
-    text: `
-      Hello ${name},
-
-      Your tickets have been successfully purchased!
-
-      ${ticketList}
-
-      Thank you for using our service!
-
-      Best regards,
-      Support Team
-    `,
+    to: email,
+    subject: 'Payment Confirmation',
+    text: `Hello ${name},\n\nThank you for your purchase. Your tickets are: ${ticketList}\n\nBest regards,\nTeam`,
   };
 
-  transporter.sendMail(mailOptions, (error, info) => {
-    if (error) {
-      console.error('Error sending email:', error);
-    } else {
-      console.log('Email sent:', info.response);
-    }
-  });
+  if (!mailOptions.to) {
+    throw new Error('No recipients defined');
+  }
 
-  return transporter.sendMail(mailOptions);
+  try {
+    await transporter.sendMail(mailOptions);
+    console.log('Confirmation email sent successfully');
+  } catch (error) {
+    console.error('Error sending confirmation email:', error);
+    throw error;
+  }
 };
 
 module.exports = sendConfirmationEmail;
