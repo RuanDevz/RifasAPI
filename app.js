@@ -173,7 +173,7 @@ const pool = new Pool({
 //   }
 //   console.log('Conexão bem-sucedida ao banco de dados');
 //   client.release();
-// });
+// })
 
 const PORT = process.env.PORT || 5000;
 
