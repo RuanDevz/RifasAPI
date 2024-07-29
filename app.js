@@ -5,7 +5,7 @@ const cors = require("cors");
 const bodyParser = require("body-parser");
 const db = require("./models");
 const sendConfirmationEmail = require('./services/EmailSend');
-const pg = require('pg')
+const pg = require('pg');
 
 const app = express();
 
@@ -13,13 +13,44 @@ app.use(cors());
 app.use(express.json());
 app.use(bodyParser.raw({ type: "application/json" }));
 
-let ticketsDisponiveis = 20000;
+const getTicketsDisponiveis = async () => {
+  const result = await db.AvailableTickets.findOne({ where: {}, order: [['createdAt', 'DESC']] });
+  return result ? result.tickets : 20000; 
+};
 
-app.get("/tickets-restantes", (req, res) => {
+const updateTicketsDisponiveis = async (tickets) => {
+  await db.AvailableTickets.create({ tickets });
+};
+
+let timeLeft = 120 * 24 * 3600;
+
+app.get("/time-left", (req, res) => {
+  res.json({ timeLeft });
+});
+
+setInterval(() => {
+  if (timeLeft > 0) {
+    timeLeft -= 1;
+  }
+}, 1000);
+
+app.post("/reset-time", (req, res) => {
+  const { newTimeLeft } = req.body;
+  if (newTimeLeft && Number.isInteger(newTimeLeft) && newTimeLeft >= 0) {
+    timeLeft = newTimeLeft;
+    res.json({ message: "Tempo restante resetado com sucesso.", timeLeft });
+  } else {
+    res.status(400).json({ error: "O novo tempo deve ser um número inteiro não negativo." });
+  }
+});
+
+app.get("/tickets-restantes", async (req, res) => {
+  const ticketsDisponiveis = await getTicketsDisponiveis();
   res.json({ ticketsDisponiveis });
 });
 
 app.post("/create-checkout", async (req, res) => {
+  const ticketsDisponiveis = await getTicketsDisponiveis();
   const totalQuantity = req.body.products.reduce((acc, product) => acc + product.quantity, 0);
 
   if (totalQuantity > ticketsDisponiveis) {
@@ -48,6 +79,7 @@ app.post("/create-checkout", async (req, res) => {
 });
 
 app.post("/reduce-ticket", async (req, res) => {
+  const ticketsDisponiveis = await getTicketsDisponiveis();
   const { quantity, email, name } = req.body;
 
   if (!email || !name) {
@@ -55,7 +87,8 @@ app.post("/reduce-ticket", async (req, res) => {
   }
 
   if (ticketsDisponiveis >= quantity) {
-    ticketsDisponiveis -= quantity;
+    const newTicketsDisponiveis = ticketsDisponiveis - quantity;
+    await updateTicketsDisponiveis(newTicketsDisponiveis);
 
     // Geração dos tickets
     const tickets = [];
@@ -83,7 +116,7 @@ app.post("/reduce-ticket", async (req, res) => {
       tickets.push(newTicket);
     }
 
-    res.json({ message: "Ticket(s) reduzido(s) com sucesso", ticketsDisponiveis, tickets });
+    res.json({ message: "Ticket(s) reduzido(s) com sucesso", ticketsDisponiveis: newTicketsDisponiveis, tickets });
 
     try {
       await sendConfirmationEmail(email, name, tickets);
@@ -98,6 +131,7 @@ app.post("/reduce-ticket", async (req, res) => {
 
 app.post("/generate-tickets", async (req, res) => {
   const { name, email, quantity } = req.body;
+  const ticketsDisponiveis = await getTicketsDisponiveis();
 
   if (!name || !email || !quantity || quantity <= 0) {
     return res.status(400).json({ error: "Nome, email e quantidade são obrigatórios e a quantidade deve ser maior que zero" });
@@ -166,18 +200,14 @@ const pool = new Pool({
   connectionString: process.env.POSTGRES_URL,
 });
 
-// pool.connect((err, client, done) => {
-//   if (err) {
-//     console.error('Erro ao conectar ao banco de dados:', err);
-//     return;
-//   }
-//   console.log('Conexão bem-sucedida ao banco de dados');
-//   client.release();
-// })
-
 const PORT = process.env.PORT || 5000;
 
-db.sequelize.sync().then(() => {
+db.sequelize.sync().then(async () => {
+  const tickets = await getTicketsDisponiveis();
+  if (!tickets) {
+    await updateTicketsDisponiveis(20000);
+  }
+
   app.listen(PORT, () => {
     console.log(`Servidor rodando na porta ${PORT}`);
   });
