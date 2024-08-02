@@ -6,7 +6,6 @@ const bodyParser = require("body-parser");
 const db = require("./models");
 const sendConfirmationEmail = require("./services/EmailSend");
 const pg = require("pg");
-const http = require('http');
 
 
 const app = express();
@@ -15,9 +14,6 @@ app.use(cors());
 app.use(express.json());
 app.use(bodyParser.raw({ type: "application/json" }));
 
-const server = http.createServer(app);
-
-server.setTimeout(0)
 
 
 
