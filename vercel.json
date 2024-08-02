@@ -4,16 +4,20 @@
     {
       "src": "app.js",
       "use": "@vercel/node"
+    },
+    {
+      "src": "routes/*.js",
+      "use": "@vercel/node"
     }
   ],
   "routes": [
     {
-      "src": "/(.*)",
-      "dest": "/app.js"
+      "src": "/reduce-ticket",
+      "dest": "/routes/reduce-ticket.js"
     }
   ],
   "functions": {
-    "app.js": {
+    "routes/reduce-ticket.js": {
       "maxDuration": 60
     }
   }
