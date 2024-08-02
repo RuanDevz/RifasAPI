@@ -13,14 +13,12 @@ app.use(cors());
 app.use(express.json());
 app.use(bodyParser.raw({ type: "application/json" }));
 
-
-
 app.use((req, res, next) => {
   res.header("Access-Control-Allow-Origin", "*");
   res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
   res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
   if (req.method === "OPTIONS") {
-    return res.sendStatus(200)
+    return res.sendStatus(200);
   }
   next();
 });
@@ -101,21 +99,31 @@ app.post("/create-checkout", async (req, res) => {
 });
 
 app.post("/reduce-ticket", async (req, res) => {
-  const ticketsDisponiveis = await getTicketsDisponiveis();
   const { quantity, email, name } = req.body;
 
   if (!email || !name) {
     return res.status(400).json({ error: "Email e nome são obrigatórios." });
   }
 
-  if (ticketsDisponiveis >= quantity) {
-    try {
+  // Responda imediatamente ao cliente
+  res.json({ message: "O processamento está em andamento." });
+
+  // Inicie o processamento em segundo plano
+  processTicketReduction(quantity, email, name);
+});
+
+const processTicketReduction = async (quantity, email, name) => {
+  try {
+    const ticketsDisponiveis = await getTicketsDisponiveis();
+
+    if (ticketsDisponiveis >= quantity) {
       const newTicketsDisponiveis = ticketsDisponiveis - quantity;
       await updateTicketsDisponiveis(newTicketsDisponiveis);
 
+      // Gere números de tickets únicos
       const ticketPromises = [];
       for (let i = 0; i < quantity; i++) {
-        ticketPromises.push(generateUniqueTicketNumber()); // Use função para gerar números únicos
+        ticketPromises.push(generateUniqueTicketNumber());
       }
 
       const ticketNumbers = await Promise.all(ticketPromises);
@@ -125,26 +133,24 @@ app.post("/reduce-ticket", async (req, res) => {
 
       const tickets = await Promise.all(createTicketsPromises);
 
-      res.json({
-        message: "Ticket(s) reduzido(s) com sucesso",
-        ticketsDisponiveis: newTicketsDisponiveis,
-        tickets,
-      });
-
+      // Envio do email de confirmação
       try {
         await sendConfirmationEmail(email, name, tickets);
-      } catch (error) {
-        console.error("Error sending confirmation email:", error);
-        res.status(500).json({ error: "Erro ao enviar email de confirmação." });
+      } catch (emailError) {
+        console.error("Erro ao enviar email de confirmação:", emailError);
       }
-    } catch (error) {
-      console.error("Error reducing tickets:", error);
-      res.status(500).json({ error: "Erro ao reduzir tickets." });
+    } else {
+      console.error("Não há tickets suficientes disponíveis.");
     }
-  } else {
-    res.status(400).json({ error: "Não há tickets suficientes disponíveis." });
+  } catch (error) {
+    console.error("Erro ao reduzir tickets:", error);
   }
-});
+};
+
+const generateUniqueTicketNumber = async () => {
+  // Implementar lógica para gerar números únicos
+  return Math.floor(Math.random() * 1000000) + 1;
+};
 
 app.post("/generate-tickets", async (req, res) => {
   const { name, email, quantity } = req.body;
@@ -189,7 +195,7 @@ app.get("/ticket-info/:ticketNumber", async (req, res) => {
       ticket: ticket.ticket,
     });
   } catch (error) {
-    console.error("Error fetching ticket info:", error);
+    console.error("Erro ao buscar informações do ticket:", error);
     res.status(500).json({ error: "Erro ao buscar informações do ticket" });
   }
 });
@@ -216,7 +222,7 @@ app.get("/tickets-by-email/:email", async (req, res) => {
       tickets: formattedTickets,
     });
   } catch (error) {
-    console.error("Error fetching tickets by email:", error);
+    console.error("Erro ao buscar tickets pelo email:", error);
     res.status(500).json({ error: "Erro ao buscar tickets pelo email" });
   }
 });
@@ -234,7 +240,6 @@ db.sequelize.sync().then(async () => {
   if (!tickets) {
     await updateTicketsDisponiveis(20000);
   }
-  //adjust
   app.listen(PORT, () => {
     console.log(`Servidor rodando na porta ${PORT}`);
   });
