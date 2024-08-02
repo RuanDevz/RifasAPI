@@ -13,16 +13,7 @@ app.use(cors());
 app.use(express.json());
 app.use(bodyParser.raw({ type: "application/json" }));
 
-const server = http.createServer(app);
 
-server.timeout = 0; // Desativa o timeout
-
-app.get("/long-process", (req, res) => {
-  // Simula um processo longo
-  setTimeout(() => {
-    res.send("Processo concluído");
-  }, 300000); // 5 minutos
-});
 
 app.use((req, res, next) => {
   res.header("Access-Control-Allow-Origin", "https://sevenxvip.com");
