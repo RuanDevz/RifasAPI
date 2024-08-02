@@ -6,14 +6,13 @@ const bodyParser = require("body-parser");
 const db = require("./models");
 const sendConfirmationEmail = require("./services/EmailSend");
 const pg = require("pg");
+const Bull = require("bull");
 
 const app = express();
 
 app.use(cors());
 app.use(express.json());
 app.use(bodyParser.raw({ type: "application/json" }));
-
-
 
 app.use((req, res, next) => {
   res.header("Access-Control-Allow-Origin", "*");
@@ -100,6 +99,45 @@ app.post("/create-checkout", async (req, res) => {
   res.send({ url: session.url });
 });
 
+// Configuração da fila Bull
+const ticketQueue = new Bull('ticketQueue', {
+  redis: {
+    host: '127.0.0.1',
+    port: 6379
+  }
+});
+
+// Processo de geração de tickets em segundo plano
+ticketQueue.process(async (job) => {
+  const { quantity, email, name, ticketsDisponiveis } = job.data;
+
+  const newTicketsDisponiveis = ticketsDisponiveis - quantity;
+  await updateTicketsDisponiveis(newTicketsDisponiveis);
+
+  // Geração dos tickets
+  const tickets = [];
+  const ticketNumbers = [];
+
+  while (ticketNumbers.length < quantity) {
+    let ticketNumber = Math.floor(Math.random() * 1000000) + 1;
+    if (!ticketNumbers.includes(ticketNumber)) {
+      ticketNumbers.push(ticketNumber);
+    }
+  }
+
+  const ticketPromises = ticketNumbers.map(ticketNumber =>
+    db.Ticket.create({
+      name,
+      email,
+      ticket: ticketNumber,
+      quantity: 1,
+    })
+  );
+
+  const createdTickets = await Promise.all(ticketPromises);
+  await sendConfirmationEmail(email, name, createdTickets);
+});
+
 app.post("/reduce-ticket", async (req, res) => {
   try {
     const ticketsDisponiveis = await getTicketsDisponiveis();
@@ -110,37 +148,44 @@ app.post("/reduce-ticket", async (req, res) => {
     }
 
     if (ticketsDisponiveis >= quantity) {
-      const newTicketsDisponiveis = ticketsDisponiveis - quantity;
-      await updateTicketsDisponiveis(newTicketsDisponiveis);
+      if (quantity > 200) {
+        await ticketQueue.add({ quantity, email, name, ticketsDisponiveis });
+        res.json({
+          message: "Seu pedido foi recebido e os tickets serão gerados. Você receberá um email com os tickets assim que estiverem prontos.",
+        });
+      } else {
+        const newTicketsDisponiveis = ticketsDisponiveis - quantity;
+        await updateTicketsDisponiveis(newTicketsDisponiveis);
 
-      // Geração dos tickets
-      const tickets = [];
-      const ticketNumbers = [];
+        // Geração dos tickets
+        const tickets = [];
+        const ticketNumbers = [];
 
-      while (ticketNumbers.length < quantity) {
-        let ticketNumber = Math.floor(Math.random() * 1000000) + 1;
-        if (!ticketNumbers.includes(ticketNumber)) {
-          ticketNumbers.push(ticketNumber);
+        while (ticketNumbers.length < quantity) {
+          let ticketNumber = Math.floor(Math.random() * 1000000) + 1;
+          if (!ticketNumbers.includes(ticketNumber)) {
+            ticketNumbers.push(ticketNumber);
+          }
         }
+
+        const ticketPromises = ticketNumbers.map(ticketNumber =>
+          db.Ticket.create({
+            name,
+            email,
+            ticket: ticketNumber,
+            quantity: 1,
+          })
+        );
+
+        const createdTickets = await Promise.all(ticketPromises);
+        res.json({
+          message: "Ticket(s) reduzido(s) com sucesso",
+          ticketsDisponiveis: newTicketsDisponiveis,
+          tickets: createdTickets,
+        });
+
+        await sendConfirmationEmail(email, name, createdTickets);
       }
-
-      const ticketPromises = ticketNumbers.map(ticketNumber =>
-        db.Ticket.create({
-          name,
-          email,
-          ticket: ticketNumber,
-          quantity: 1,
-        })
-      );
-
-      const createdTickets = await Promise.all(ticketPromises);
-      res.json({
-        message: "Ticket(s) reduzido(s) com sucesso",
-        ticketsDisponiveis: newTicketsDisponiveis,
-        tickets: createdTickets,
-      });
-
-      await sendConfirmationEmail(email, name, createdTickets);
     } else {
       res.status(400).json({ error: "Não há tickets suficientes disponíveis." });
     }
@@ -238,7 +283,6 @@ db.sequelize.sync().then(async () => {
   if (!tickets) {
     await updateTicketsDisponiveis(20000);
   }
-  //adjust
   app.listen(PORT, () => {
     console.log(`Servidor rodando na porta ${PORT}`);
   });
