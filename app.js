@@ -16,11 +16,11 @@ app.use(bodyParser.raw({ type: "application/json" }));
 
 
 app.use((req, res, next) => {
-  res.header("Access-Control-Allow-Origin", "https://sevenxvip.com");
+  res.header("Access-Control-Allow-Origin", "*");
   res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
   res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
   if (req.method === "OPTIONS") {
-    return res.sendStatus(200); // Responde ao preflight OPTIONS
+    return res.sendStatus(200)
   }
   next();
 });
@@ -109,46 +109,37 @@ app.post("/reduce-ticket", async (req, res) => {
   }
 
   if (ticketsDisponiveis >= quantity) {
-    const newTicketsDisponiveis = ticketsDisponiveis - quantity;
-    await updateTicketsDisponiveis(newTicketsDisponiveis);
+    try {
+      const newTicketsDisponiveis = ticketsDisponiveis - quantity;
+      await updateTicketsDisponiveis(newTicketsDisponiveis);
 
-    // Geração dos tickets
-    const tickets = [];
-    for (let i = 0; i < quantity; i++) {
-      let ticketNumber;
-      let ticketExists = true;
-
-      while (ticketExists) {
-        ticketNumber = Math.floor(Math.random() * 1000000) + 1;
-        const existingTicket = await db.Ticket.findOne({
-          where: { ticket: ticketNumber },
-        });
-        if (!existingTicket) {
-          ticketExists = false;
-        }
+      const ticketPromises = [];
+      for (let i = 0; i < quantity; i++) {
+        ticketPromises.push(generateUniqueTicketNumber()); // Use função para gerar números únicos
       }
 
-      const newTicket = await db.Ticket.create({
-        name,
-        email,
-        ticket: ticketNumber,
-        quantity: 1,
+      const ticketNumbers = await Promise.all(ticketPromises);
+      const createTicketsPromises = ticketNumbers.map(ticketNumber => {
+        return db.Ticket.create({ name, email, ticket: ticketNumber, quantity: 1 });
       });
 
-      tickets.push(newTicket);
-    }
+      const tickets = await Promise.all(createTicketsPromises);
 
-    res.json({
-      message: "Ticket(s) reduzido(s) com sucesso",
-      ticketsDisponiveis: newTicketsDisponiveis,
-      tickets,
-    });
+      res.json({
+        message: "Ticket(s) reduzido(s) com sucesso",
+        ticketsDisponiveis: newTicketsDisponiveis,
+        tickets,
+      });
 
-    try {
-      await sendConfirmationEmail(email, name, tickets);
+      try {
+        await sendConfirmationEmail(email, name, tickets);
+      } catch (error) {
+        console.error("Error sending confirmation email:", error);
+        res.status(500).json({ error: "Erro ao enviar email de confirmação." });
+      }
     } catch (error) {
-      console.error("Error sending confirmation email:", error);
-      res.status(500).json({ error: "Erro ao enviar email de confirmação." });
+      console.error("Error reducing tickets:", error);
+      res.status(500).json({ error: "Erro ao reduzir tickets." });
     }
   } else {
     res.status(400).json({ error: "Não há tickets suficientes disponíveis." });
