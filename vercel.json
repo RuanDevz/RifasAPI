@@ -2,7 +2,7 @@
   "version": 2,
   "functions": {
     "app.js": {
-      "maxDuration": 30 // Define a duração máxima para a função principal
+      "maxDuration": 60
     }
   },
   "routes": [
