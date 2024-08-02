@@ -6,13 +6,20 @@ const bodyParser = require("body-parser");
 const db = require("./models");
 const sendConfirmationEmail = require("./services/EmailSend");
 const pg = require("pg");
-const Bull = require("bull");
+const http = require('http');
+
 
 const app = express();
 
 app.use(cors());
 app.use(express.json());
 app.use(bodyParser.raw({ type: "application/json" }));
+
+const server = http.createServer(app);
+
+server.setTimeout(0)
+
+
 
 app.use((req, res, next) => {
   res.header("Access-Control-Allow-Origin", "*");
@@ -99,99 +106,58 @@ app.post("/create-checkout", async (req, res) => {
   res.send({ url: session.url });
 });
 
-// Configuração da fila Bull
-const ticketQueue = new Bull('ticketQueue', {
-  redis: {
-    host: '127.0.0.1',
-    port: 6379
-  }
-});
-
-// Processo de geração de tickets em segundo plano
-ticketQueue.process(async (job) => {
-  const { quantity, email, name, ticketsDisponiveis } = job.data;
-
-  const newTicketsDisponiveis = ticketsDisponiveis - quantity;
-  await updateTicketsDisponiveis(newTicketsDisponiveis);
-
-  // Geração dos tickets
-  const tickets = [];
-  const ticketNumbers = [];
-
-  while (ticketNumbers.length < quantity) {
-    let ticketNumber = Math.floor(Math.random() * 1000000) + 1;
-    if (!ticketNumbers.includes(ticketNumber)) {
-      ticketNumbers.push(ticketNumber);
-    }
-  }
-
-  const ticketPromises = ticketNumbers.map(ticketNumber =>
-    db.Ticket.create({
-      name,
-      email,
-      ticket: ticketNumber,
-      quantity: 1,
-    })
-  );
-
-  const createdTickets = await Promise.all(ticketPromises);
-  await sendConfirmationEmail(email, name, createdTickets);
-});
-
 app.post("/reduce-ticket", async (req, res) => {
-  try {
-    const ticketsDisponiveis = await getTicketsDisponiveis();
-    const { quantity, email, name } = req.body;
+  const ticketsDisponiveis = await getTicketsDisponiveis();
+  const { quantity, email, name } = req.body;
 
-    if (!email || !name) {
-      return res.status(400).json({ error: "Email e nome são obrigatórios." });
-    }
+  if (!email || !name) {
+    return res.status(400).json({ error: "Email e nome são obrigatórios." });
+  }
 
-    if (ticketsDisponiveis >= quantity) {
-      if (quantity > 200) {
-        await ticketQueue.add({ quantity, email, name, ticketsDisponiveis });
-        res.json({
-          message: "Seu pedido foi recebido e os tickets serão gerados. Você receberá um email com os tickets assim que estiverem prontos.",
+  if (ticketsDisponiveis >= quantity) {
+    const newTicketsDisponiveis = ticketsDisponiveis - quantity;
+    await updateTicketsDisponiveis(newTicketsDisponiveis);
+
+    // Geração dos tickets
+    const tickets = [];
+    for (let i = 0; i < quantity; i++) {
+      let ticketNumber;
+      let ticketExists = true;
+
+      while (ticketExists) {
+        ticketNumber = Math.floor(Math.random() * 1000000) + 1;
+        const existingTicket = await db.Ticket.findOne({
+          where: { ticket: ticketNumber },
         });
-      } else {
-        const newTicketsDisponiveis = ticketsDisponiveis - quantity;
-        await updateTicketsDisponiveis(newTicketsDisponiveis);
-
-        // Geração dos tickets
-        const tickets = [];
-        const ticketNumbers = [];
-
-        while (ticketNumbers.length < quantity) {
-          let ticketNumber = Math.floor(Math.random() * 1000000) + 1;
-          if (!ticketNumbers.includes(ticketNumber)) {
-            ticketNumbers.push(ticketNumber);
-          }
+        if (!existingTicket) {
+          ticketExists = false;
         }
-
-        const ticketPromises = ticketNumbers.map(ticketNumber =>
-          db.Ticket.create({
-            name,
-            email,
-            ticket: ticketNumber,
-            quantity: 1,
-          })
-        );
-
-        const createdTickets = await Promise.all(ticketPromises);
-        res.json({
-          message: "Ticket(s) reduzido(s) com sucesso",
-          ticketsDisponiveis: newTicketsDisponiveis,
-          tickets: createdTickets,
-        });
-
-        await sendConfirmationEmail(email, name, createdTickets);
       }
-    } else {
-      res.status(400).json({ error: "Não há tickets suficientes disponíveis." });
+
+      const newTicket = await db.Ticket.create({
+        name,
+        email,
+        ticket: ticketNumber,
+        quantity: 1,
+      });
+
+      tickets.push(newTicket);
     }
-  } catch (error) {
-    console.error("Error in /reduce-ticket:", error);
-    res.status(500).json({ error: "Erro ao processar a requisição." });
+
+    res.json({
+      message: "Ticket(s) reduzido(s) com sucesso",
+      ticketsDisponiveis: newTicketsDisponiveis,
+      tickets,
+    });
+
+    try {
+      await sendConfirmationEmail(email, name, tickets);
+    } catch (error) {
+      console.error("Error sending confirmation email:", error);
+      res.status(500).json({ error: "Erro ao enviar email de confirmação." });
+    }
+  } else {
+    res.status(400).json({ error: "Não há tickets suficientes disponíveis." });
   }
 });
 
@@ -283,6 +249,7 @@ db.sequelize.sync().then(async () => {
   if (!tickets) {
     await updateTicketsDisponiveis(20000);
   }
+  //adjust
   app.listen(PORT, () => {
     console.log(`Servidor rodando na porta ${PORT}`);
   });
