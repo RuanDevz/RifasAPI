@@ -110,35 +110,32 @@ app.post("/reduce-ticket", async (req, res) => {
     return res.status(400).json({ error: "Email e nome são obrigatórios." });
   }
 
-  if (ticketsDisponiveis >= quantity) {
-    const newTicketsDisponiveis = ticketsDisponiveis - quantity;
-    await updateTicketsDisponiveis(newTicketsDisponiveis);
+  if (ticketsDisponiveis < quantity) {
+    return res.status(400).json({ error: "Não há tickets suficientes disponíveis." });
+  }
 
+  const newTicketsDisponiveis = ticketsDisponiveis - quantity;
+  await updateTicketsDisponiveis(newTicketsDisponiveis);
+
+  try {
     // Geração dos tickets
-    const tickets = [];
-    for (let i = 0; i < quantity; i++) {
+    const existingTickets = new Set((await db.Ticket.findAll({ attributes: ['ticket'] })).map(t => t.ticket));
+    const ticketsPromises = Array.from({ length: quantity }, async () => {
       let ticketNumber;
-      let ticketExists = true;
-
-      while (ticketExists) {
+      do {
         ticketNumber = Math.floor(Math.random() * 1000000) + 1;
-        const existingTicket = await db.Ticket.findOne({
-          where: { ticket: ticketNumber },
-        });
-        if (!existingTicket) {
-          ticketExists = false;
-        }
-      }
+      } while (existingTickets.has(ticketNumber));
+      existingTickets.add(ticketNumber);
 
-      const newTicket = await db.Ticket.create({
+      return db.Ticket.create({
         name,
         email,
         ticket: ticketNumber,
         quantity: 1,
       });
+    });
 
-      tickets.push(newTicket);
-    }
+    const tickets = await Promise.all(ticketsPromises);
 
     res.json({
       message: "Ticket(s) reduzido(s) com sucesso",
@@ -146,14 +143,10 @@ app.post("/reduce-ticket", async (req, res) => {
       tickets,
     });
 
-    try {
-      await sendConfirmationEmail(email, name, tickets);
-    } catch (error) {
-      console.error("Error sending confirmation email:", error);
-      res.status(500).json({ error: "Erro ao enviar email de confirmação." });
-    }
-  } else {
-    res.status(400).json({ error: "Não há tickets suficientes disponíveis." });
+    await sendConfirmationEmail(email, name, tickets);
+  } catch (error) {
+    console.error("Error processing tickets:", error);
+    res.status(500).json({ error: "Erro ao processar os tickets." });
   }
 });
 
