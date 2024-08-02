@@ -101,57 +101,52 @@ app.post("/create-checkout", async (req, res) => {
 });
 
 app.post("/reduce-ticket", async (req, res) => {
-  const ticketsDisponiveis = await getTicketsDisponiveis();
-  const { quantity, email, name } = req.body;
+  try {
+    const ticketsDisponiveis = await getTicketsDisponiveis();
+    const { quantity, email, name } = req.body;
 
-  if (!email || !name) {
-    return res.status(400).json({ error: "Email e nome são obrigatórios." });
-  }
+    if (!email || !name) {
+      return res.status(400).json({ error: "Email e nome são obrigatórios." });
+    }
 
-  if (ticketsDisponiveis >= quantity) {
-    const newTicketsDisponiveis = ticketsDisponiveis - quantity;
-    await updateTicketsDisponiveis(newTicketsDisponiveis);
+    if (ticketsDisponiveis >= quantity) {
+      const newTicketsDisponiveis = ticketsDisponiveis - quantity;
+      await updateTicketsDisponiveis(newTicketsDisponiveis);
 
-    // Geração dos tickets
-    const tickets = [];
-    for (let i = 0; i < quantity; i++) {
-      let ticketNumber;
-      let ticketExists = true;
+      // Geração dos tickets
+      const tickets = [];
+      const ticketNumbers = [];
 
-      while (ticketExists) {
-        ticketNumber = Math.floor(Math.random() * 1000000) + 1;
-        const existingTicket = await db.Ticket.findOne({
-          where: { ticket: ticketNumber },
-        });
-        if (!existingTicket) {
-          ticketExists = false;
+      while (ticketNumbers.length < quantity) {
+        let ticketNumber = Math.floor(Math.random() * 1000000) + 1;
+        if (!ticketNumbers.includes(ticketNumber)) {
+          ticketNumbers.push(ticketNumber);
         }
       }
 
-      const newTicket = await db.Ticket.create({
-        name,
-        email,
-        ticket: ticketNumber,
-        quantity: 1,
+      const ticketPromises = ticketNumbers.map(ticketNumber =>
+        db.Ticket.create({
+          name,
+          email,
+          ticket: ticketNumber,
+          quantity: 1,
+        })
+      );
+
+      const createdTickets = await Promise.all(ticketPromises);
+      res.json({
+        message: "Ticket(s) reduzido(s) com sucesso",
+        ticketsDisponiveis: newTicketsDisponiveis,
+        tickets: createdTickets,
       });
 
-      tickets.push(newTicket);
+      await sendConfirmationEmail(email, name, createdTickets);
+    } else {
+      res.status(400).json({ error: "Não há tickets suficientes disponíveis." });
     }
-
-    res.json({
-      message: "Ticket(s) reduzido(s) com sucesso",
-      ticketsDisponiveis: newTicketsDisponiveis,
-      tickets,
-    });
-
-    try {
-      await sendConfirmationEmail(email, name, tickets);
-    } catch (error) {
-      console.error("Error sending confirmation email:", error);
-      res.status(500).json({ error: "Erro ao enviar email de confirmação." });
-    }
-  } else {
-    res.status(400).json({ error: "Não há tickets suficientes disponíveis." });
+  } catch (error) {
+    console.error("Error in /reduce-ticket:", error);
+    res.status(500).json({ error: "Erro ao processar a requisição." });
   }
 });
 
