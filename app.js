@@ -84,8 +84,6 @@ app.post("/create-checkout", async (req, res) => {
   res.send({ url: session.url });
 });
 
-const BATCH_SIZE = 100; // Ajuste o tamanho do lote conforme necessário
-
 app.post("/reduce-ticket", async (req, res) => {
   const ticketsDisponiveis = await getTicketsDisponiveis();
   const { quantity, email, name } = req.body;
@@ -99,26 +97,17 @@ app.post("/reduce-ticket", async (req, res) => {
 
   try {
     const existingTickets = new Set((await db.Ticket.findAll({ attributes: ['ticket'] })).map(t => t.ticket));
-    const batches = Math.ceil(quantity / BATCH_SIZE);
+    const ticketsPromises = Array.from({ length: quantity }, async () => {
+      let ticketNumber;
+      do {
+        ticketNumber = Math.floor(Math.random() * 1000000) + 1;
+      } while (existingTickets.has(ticketNumber));
+      existingTickets.add(ticketNumber);
+      return db.Ticket.create({ name, email, ticket: ticketNumber, quantity: 1 });
+    });
 
-    for (let batch = 0; batch < batches; batch++) {
-      const batchPromises = [];
+    const tickets = await Promise.all(ticketsPromises);
 
-      for (let i = 0; i < BATCH_SIZE && (batch * BATCH_SIZE + i) < quantity; i++) {
-        batchPromises.push((async () => {
-          let ticketNumber;
-          do {
-            ticketNumber = Math.floor(Math.random() * 1000000) + 1;
-          } while (existingTickets.has(ticketNumber));
-          existingTickets.add(ticketNumber);
-          return db.Ticket.create({ name, email, ticket: ticketNumber, quantity: 1 });
-        })());
-      }
-
-      await Promise.all(batchPromises);
-    }
-
-    const tickets = await db.Ticket.findAll({ where: { email } });
     res.json({ message: "Ticket(s) reduzido(s) com sucesso", ticketsDisponiveis: newTicketsDisponiveis, tickets });
     await sendConfirmationEmail(email, name, tickets);
   } catch (error) {
