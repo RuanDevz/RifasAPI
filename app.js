@@ -4,8 +4,8 @@ const express = require("express");
 const cors = require("cors");
 const bodyParser = require("body-parser");
 const db = require("./models");
-const sendConfirmationEmail = require('./services/EmailSend');
-const pg = require('pg');
+const sendConfirmationEmail = require("./services/EmailSend");
+const pg = require("pg");
 
 const app = express();
 
@@ -13,19 +13,33 @@ app.use(cors());
 app.use(express.json());
 app.use(bodyParser.raw({ type: "application/json" }));
 
+const server = http.createServer(app);
+
+server.timeout = 0; // Desativa o timeout
+
+app.get("/long-process", (req, res) => {
+  // Simula um processo longo
+  setTimeout(() => {
+    res.send("Processo concluído");
+  }, 300000); // 5 minutos
+});
+
 app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', 'https://sevenxvip.com');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  if (req.method === 'OPTIONS') {
+  res.header("Access-Control-Allow-Origin", "https://sevenxvip.com");
+  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+  res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  if (req.method === "OPTIONS") {
     return res.sendStatus(200); // Responde ao preflight OPTIONS
   }
   next();
 });
 
 const getTicketsDisponiveis = async () => {
-  const result = await db.AvailableTickets.findOne({ where: {}, order: [['createdAt', 'DESC']] });
-  return result ? result.tickets : 20000; 
+  const result = await db.AvailableTickets.findOne({
+    where: {},
+    order: [["createdAt", "DESC"]],
+  });
+  return result ? result.tickets : 20000;
 };
 
 const updateTicketsDisponiveis = async (tickets) => {
@@ -50,10 +64,11 @@ app.post("/reset-time", (req, res) => {
     timeLeft = newTimeLeft;
     res.json({ message: "Tempo restante resetado com sucesso.", timeLeft });
   } else {
-    res.status(400).json({ error: "O novo tempo deve ser um número inteiro não negativo." });
+    res
+      .status(400)
+      .json({ error: "O novo tempo deve ser um número inteiro não negativo." });
   }
 });
-
 
 app.get("/tickets-restantes", async (req, res) => {
   const ticketsDisponiveis = await getTicketsDisponiveis();
@@ -62,10 +77,15 @@ app.get("/tickets-restantes", async (req, res) => {
 
 app.post("/create-checkout", async (req, res) => {
   const ticketsDisponiveis = await getTicketsDisponiveis();
-  const totalQuantity = req.body.products.reduce((acc, product) => acc + product.quantity, 0);
+  const totalQuantity = req.body.products.reduce(
+    (acc, product) => acc + product.quantity,
+    0
+  );
 
   if (totalQuantity > ticketsDisponiveis) {
-    return res.status(400).json({ error: "Não há tickets suficientes disponíveis." });
+    return res
+      .status(400)
+      .json({ error: "Não há tickets suficientes disponíveis." });
   }
 
   const items = req.body.products.map((product) => ({
@@ -127,7 +147,11 @@ app.post("/reduce-ticket", async (req, res) => {
       tickets.push(newTicket);
     }
 
-    res.json({ message: "Ticket(s) reduzido(s) com sucesso", ticketsDisponiveis: newTicketsDisponiveis, tickets });
+    res.json({
+      message: "Ticket(s) reduzido(s) com sucesso",
+      ticketsDisponiveis: newTicketsDisponiveis,
+      tickets,
+    });
 
     try {
       await sendConfirmationEmail(email, name, tickets);
@@ -145,15 +169,23 @@ app.post("/generate-tickets", async (req, res) => {
   const ticketsDisponiveis = await getTicketsDisponiveis();
 
   if (!name || !email || !quantity || quantity <= 0) {
-    return res.status(400).json({ error: "Nome, email e quantidade são obrigatórios e a quantidade deve ser maior que zero" });
+    return res
+      .status(400)
+      .json({
+        error:
+          "Nome, email e quantidade são obrigatórios e a quantidade deve ser maior que zero",
+      });
   }
 
   if (quantity > ticketsDisponiveis) {
-    return res.status(400).json({ error: "Não há tickets suficientes disponíveis." });
+    return res
+      .status(400)
+      .json({ error: "Não há tickets suficientes disponíveis." });
   }
 
   res.json({
-    message: "Pedido para gerar tickets recebido com sucesso. A geração de tickets será feita no momento da redução de tickets.",
+    message:
+      "Pedido para gerar tickets recebido com sucesso. A geração de tickets será feita no momento da redução de tickets.",
   });
 });
 
@@ -162,7 +194,7 @@ app.get("/ticket-info/:ticketNumber", async (req, res) => {
 
   try {
     const ticket = await db.Ticket.findOne({
-      where: { ticket: ticketNumber }
+      where: { ticket: ticketNumber },
     });
 
     if (!ticket) {
@@ -185,19 +217,21 @@ app.get("/tickets-by-email/:email", async (req, res) => {
 
   try {
     const tickets = await db.Ticket.findAll({
-      where: { email }
+      where: { email },
     });
 
     if (tickets.length === 0) {
-      return res.status(404).json({ error: "Nenhum ticket encontrado para este email." });
+      return res
+        .status(404)
+        .json({ error: "Nenhum ticket encontrado para este email." });
     }
 
-    const formattedTickets = tickets.map(ticket => ({
+    const formattedTickets = tickets.map((ticket) => ({
       ticket: ticket.ticket,
     }));
 
     res.json({
-      tickets: formattedTickets
+      tickets: formattedTickets,
     });
   } catch (error) {
     console.error("Error fetching tickets by email:", error);
@@ -218,7 +252,7 @@ db.sequelize.sync().then(async () => {
   if (!tickets) {
     await updateTicketsDisponiveis(20000);
   }
-//adjust
+  //adjust
   app.listen(PORT, () => {
     console.log(`Servidor rodando na porta ${PORT}`);
   });
