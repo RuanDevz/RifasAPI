@@ -36,6 +36,16 @@ const updateTicketsDisponiveis = async (tickets) => {
   await db.AvailableTickets.create({ tickets });
 };
 
+const getAllTickets = async () => {
+  try {
+    const tickets = await db.Ticket.findAll();
+    return tickets;
+  } catch (error) {
+    console.error("Erro ao buscar todos os tickets:", error);
+    throw new Error("Erro ao buscar todos os tickets.");
+  }
+};
+
 app.get("/time-left", (req, res) => res.json({ timeLeft }));
 
 setInterval(() => {
@@ -160,6 +170,19 @@ app.get("/tickets-by-email/:email", async (req, res) => {
   } catch (error) {
     console.error("Error fetching tickets by email:", error);
     res.status(500).json({ error: "Erro ao buscar tickets pelo email." });
+  }
+});
+
+app.get("/tickets", async (req, res) => {
+  try {
+    const tickets = await getAllTickets();
+    if (tickets.length === 0) {
+      return res.status(404).json({ error: "Nenhum ticket encontrado." });
+    }
+    res.json({ tickets });
+  } catch (error) {
+    console.error("Erro ao buscar tickets:", error);
+    res.status(500).json({ error: "Erro ao buscar todos os tickets." });
   }
 });
 
