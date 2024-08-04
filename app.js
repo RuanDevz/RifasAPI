@@ -9,7 +9,6 @@ const { Pool } = require("pg");
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-let timeLeft = 120 * 24 * 3600;
 
 app.use(cors());
 app.use(express.json());
@@ -45,22 +44,6 @@ const getAllTickets = async () => {
     throw new Error("Erro ao buscar todos os tickets.");
   }
 };
-
-app.get("/time-left", (req, res) => res.json({ timeLeft }));
-
-setInterval(() => {
-  if (timeLeft > 0) timeLeft -= 1;
-}, 1000);
-
-app.post("/reset-time", (req, res) => {
-  const { newTimeLeft } = req.body;
-  if (Number.isInteger(newTimeLeft) && newTimeLeft >= 0) {
-    timeLeft = newTimeLeft;
-    res.json({ message: "Tempo restante resetado com sucesso.", timeLeft });
-  } else {
-    res.status(400).json({ error: "O novo tempo deve ser um número inteiro não negativo." });
-  }
-});
 
 app.get("/tickets-restantes", async (req, res) => {
   const ticketsDisponiveis = await getTicketsDisponiveis();
@@ -183,6 +166,25 @@ app.get("/tickets", async (req, res) => {
   } catch (error) {
     console.error("Erro ao buscar tickets:", error);
     res.status(500).json({ error: "Erro ao buscar todos os tickets." });
+  }
+});
+
+app.get("/top-buyers", async (req, res) => {
+  try {
+    const topBuyers = await db.Ticket.findAll({
+      attributes: [
+        'email',
+        [db.sequelize.fn('sum', db.sequelize.col('quantity')), 'totalTickets']
+      ],
+      group: ['email'],
+      order: [[db.sequelize.literal('"totalTickets"'), 'DESC']],
+      limit: 5
+    });
+
+    res.json({ topBuyers });
+  } catch (error) {
+    console.error("Erro ao buscar top compradores:", error);
+    res.status(500).json({ error: "Erro ao buscar top compradores." });
   }
 });
 
