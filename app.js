@@ -58,24 +58,33 @@ app.post("/create-checkout", async (req, res) => {
     return res.status(400).json({ error: "Não há tickets suficientes disponíveis." });
   }
 
+  // Preço fixo de 0,70 USD por bilhete
+  const ticketPrice = 0.70;
+
   const items = req.body.products.map((product) => ({
     price_data: {
       currency: "usd",
       product_data: { name: product.name },
-      unit_amount: parseInt(`${product.price}00`),
+      unit_amount: parseInt(ticketPrice * 100),  // 0.70 USD em centavos
     },
     quantity: product.quantity,
   }));
 
-  const session = await stripe.checkout.sessions.create({
-    line_items: items,
-    mode: "payment",
-    success_url: `${process.env.FRONT_END_URL}/#/payment-confirmation`,
-    cancel_url: `${process.env.FRONT_END_URL}/#/payment-confirmation/error`,
-  });
+  try {
+    const session = await stripe.checkout.sessions.create({
+      line_items: items,
+      mode: "payment",
+      success_url: `${process.env.FRONT_END_URL}/#/payment-confirmation`,
+      cancel_url: `${process.env.FRONT_END_URL}/#/payment-confirmation/error`,
+    });
 
-  res.send({ url: session.url });
+    res.send({ url: session.url });
+  } catch (error) {
+    console.error("Erro ao criar sessão de checkout:", error);
+    res.status(500).json({ error: "Erro ao criar sessão de checkout." });
+  }
 });
+
 
 app.post("/reduce-ticket", async (req, res) => {
   const ticketsDisponiveis = await getTicketsDisponiveis();
